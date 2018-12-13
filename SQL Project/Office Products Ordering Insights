@@ -1,0 +1,127 @@
+/* Managers performance judging from ordersales */
+SELECT M.REGMANAGER, sum(O.ORDSALES)
+FROM ORDERDET O,MANAGERS M, CUSTOMERS C
+WHERE M.REGID = C.CUSTREG AND C.CUSTID = O.CUSTID
+GROUP BY M.REGMANAGER
+ORDER BY sum(O.ORDSALES) DESC;
+
+/* Products' average processing days abefore shipping */
+SELECT E.PRODNAME,ROUND(E.shipday - E.ordday,2) as time
+FROM(
+SELECT avg(extract(day from O.ORDSHIPDATE)) as shipday,avg(extract(day from O.ORDDATE)) as ordday, P.PRODNAME
+FROM PRODUCTS P,ORDERDET O
+WHERE P.PRODUCTID = O.PRODID
+GROUP BY P.PRODNAME) E
+ORDER BY time DESC;
+
+/* Ranking of the Sales of products in different cities */
+SELECT C.CUSTCITY,P.PRODNAME, sum(O.ORDSALES) as SumSales, ROW_NUMBER()OVER(PARTITION BY C.CUSTCITY ORDER BY sum(O.ORDSALES)) as myrank
+FROM CUSTOMERS C, ORDERDET O,PRODUCTS P
+WHERE P.PRODUCTID = O.ORDERID AND O.CUSTID = C.CUSTID
+GROUP BY C.CUSTCITY,P.PRODNAME
+ORDER BY myrank ASC;
+
+/* The Id of Top 5 customers with the most order sales in Yr 2013 */
+SELECT C.CUSTID, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID AND extract(year from O.ORDDATE) = 2013
+GROUP BY C.CUSTID, extract(year from O.ORDDATE)
+ORDER BY SumSales DESC
+FETCH FIRST 5 ROWS ONLY;
+
+/* The Id of customers who have placed orders continously from 2012 to 2013 */
+WITH Q6_1 AS(
+SELECT extract(year from O.ORDDATE) as Yr, C.CUSTID, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID AND extract(year from O.ORDDATE) = 2013
+GROUP BY C.CUSTID, extract(year from O.ORDDATE)
+ORDER BY SumSales DESC),
+
+Q6_2 AS(SELECT extract(year from O.ORDDATE) as Yr, C.CUSTID, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID AND extract(year from O.ORDDATE) = 2012
+GROUP BY C.CUSTID, extract(year from O.ORDDATE)
+ORDER BY SumSales DESC),
+
+Q6_3 AS(SELECT extract(year from O.ORDDATE) as Yr, C.CUSTID, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID AND extract(year from O.ORDDATE) = 2011
+GROUP BY C.CUSTID, extract(year from O.ORDDATE)
+ORDER BY SumSales DESC),
+
+Q6_4 AS(SELECT extract(year from O.ORDDATE) as Yr, C.CUSTID, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID AND extract(year from O.ORDDATE) = 2010
+GROUP BY C.CUSTID, extract(year from O.ORDDATE)
+ORDER BY SumSales DESC)
+
+SELECT Q6_1.CUSTID
+FROM Q6_1, Q6_2, Q6_3,Q6_4
+WHERE Q6_1.CUSTID = Q6_2.CUSTID AND Q6_2.CUSTID = Q6_3.CUSTID AND Q6_3.CUSTID = Q6_4.CUSTID;
+
+
+/* The Id of new customers in Yr 2013 */
+WITH Q6_1 AS(
+SELECT extract(year from O.ORDDATE) as Yr, C.CUSTID, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID AND extract(year from O.ORDDATE) = 2013
+GROUP BY C.CUSTID, extract(year from O.ORDDATE)
+ORDER BY SumSales DESC),
+
+Q6_2 AS(SELECT extract(year from O.ORDDATE) as Yr, C.CUSTID, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID AND extract(year from O.ORDDATE) = 2012
+GROUP BY C.CUSTID, extract(year from O.ORDDATE)
+ORDER BY SumSales DESC),
+
+Q6_3 AS(SELECT extract(year from O.ORDDATE) as Yr, C.CUSTID, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID AND extract(year from O.ORDDATE) = 2011
+GROUP BY C.CUSTID, extract(year from O.ORDDATE)
+ORDER BY SumSales DESC),
+
+Q6_4 AS(SELECT extract(year from O.ORDDATE) as Yr, C.CUSTID, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID AND extract(year from O.ORDDATE) = 2010
+GROUP BY C.CUSTID, extract(year from O.ORDDATE)
+ORDER BY SumSales DESC)
+
+SELECT CUSTID
+FROM(
+SELECT UNIQUE(Q6_1.CUSTID)
+FROM Q6_1
+MINUS
+(SELECT UNIQUE(Q6_2.CUSTID)
+FROM Q6_2
+UNION
+SELECT UNIQUE(Q6_3.CUSTID)
+FROM Q6_3
+UNION
+SELECT UNIQUE(Q6_4.CUSTID)
+FROM Q6_4));
+
+/* Number of orders among various product subcategories in Michigan & Washington */
+SELECT *
+FROM(
+SELECT C.CUSTSTATE, P.PRODSUBCAT, sum(O.ORDQTY) as SumQty
+FROM ORDERDET O, PRODUCTS P,CUSTOMERS C
+WHERE P.PRODUCTID = O.PRODID AND C.CUSTID = O.CUSTID 
+GROUP BY C.CUSTSTATE, P.PRODSUBCAT
+HAVING C.CUSTSTATE = 'Michigan' OR  C.CUSTSTATE = 'Washington')
+PIVOT(
+    sum(SumQty)
+    FOR CUSTSTATE in ('Michigan' as MichiganQty, 'Washington' as WashingtonQty));
+
+
+/* Order number in quarters */
+SELECT to_char(O.ORDDATE,'Q') as quarter, sum(O.ORDQTY) as SumQty
+FROM ORDERDET O
+GROUP BY to_char(O.ORDDATE,'Q');
+
+/* Order number in quarters among four customer regions */
+SELECT to_char(O.ORDDATE,'Q') as quarter, C.CUSTREG, sum(O.ORDSALES) as SumSales
+FROM ORDERDET O, CUSTOMERS C
+WHERE O.CUSTID = C.CUSTID
+GROUP BY C.CUSTREG,to_char(O.ORDDATE,'Q')
+ORDER BY quarter, SumSales DESC;
+
