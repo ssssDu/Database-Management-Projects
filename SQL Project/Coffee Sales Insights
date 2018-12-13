@@ -1,4 +1,4 @@
-#### Create Coffee Tables 
+/* Create Coffee Tables */
 
 CREATE Table ProdCoffee (
 ProductID NUMBER PRIMARY KEY,
